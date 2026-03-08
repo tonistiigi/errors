@@ -3,6 +3,7 @@ package errors
 import (
 	stderrors "errors"
 	"fmt"
+	"io"
 	"testing"
 )
 
@@ -171,5 +172,68 @@ func TestUnwrap(t *testing.T) {
 				t.Errorf("Unwrap() error = %v, want %v", err, tt.want)
 			}
 		})
+	}
+}
+
+func TestJoin(t *testing.T) {
+	err1 := New("err1")
+	err2 := New("err2")
+
+	tests := []struct {
+		name string
+		errs []error
+		want string
+	}{
+		{
+			name: "two errors",
+			errs: []error{err1, err2},
+			want: "err1\nerr2",
+		},
+		{
+			name: "nil filtered",
+			errs: []error{err1, nil, err2},
+			want: "err1\nerr2",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := Join(tt.errs...)
+			if err == nil {
+				t.Fatal("Join() = nil, want non-nil")
+			}
+			if got := err.Error(); got != tt.want {
+				t.Errorf("Join().Error() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestJoinNil(t *testing.T) {
+	if err := Join(); err != nil {
+		t.Errorf("Join() = %v, want nil", err)
+	}
+	if err := Join(nil, nil); err != nil {
+		t.Errorf("Join(nil, nil) = %v, want nil", err)
+	}
+}
+
+func TestAsType(t *testing.T) {
+	err := customErr{msg: "test"}
+	wrapped := Wrap(err, "wrapped")
+
+	got, ok := AsType[customErr](wrapped)
+	if !ok {
+		t.Fatal("AsType[customErr]() = false, want true")
+	}
+	if got != err {
+		t.Errorf("AsType[customErr]() = %v, want %v", got, err)
+	}
+}
+
+func TestAsTypeNotFound(t *testing.T) {
+	err := io.EOF
+	_, ok := AsType[customErr](err)
+	if ok {
+		t.Error("AsType[customErr](io.EOF) = true, want false")
 	}
 }
